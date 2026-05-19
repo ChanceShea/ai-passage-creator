@@ -1,9 +1,12 @@
 package com.shea.aipassagecreator.exception;
 
+import lombok.Getter;
+
 /**
  * @author : Shea.
  * @since : 2026/5/18 09:36
  */
+@Getter
 public class BusinessException extends RuntimeException{
 
     private String message;

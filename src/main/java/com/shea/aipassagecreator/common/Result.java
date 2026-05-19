@@ -1,5 +1,6 @@
 package com.shea.aipassagecreator.common;
 
+import com.shea.aipassagecreator.exception.ErrorCode;
 import lombok.Data;
 
 /**
@@ -29,5 +30,9 @@ public class Result<T> {
 
     public static <T> Result<T> fail(int code, String message) {
         return new Result<>(code, message, null);
+    }
+
+    public static <T> Result<T> fail(ErrorCode code,String message) {
+        return new Result<>(code.getCode(), message, null);
     }
 }
