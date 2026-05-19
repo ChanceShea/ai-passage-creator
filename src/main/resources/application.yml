@@ -1,0 +1,36 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    #cookie timeout 30d
+    session:
+      cookie:
+        max-age: 2592000
+spring:
+  application:
+    name: ai-passage-creator
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.100.104:3306/ai_passage_creator?useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+  session:
+    store-type: redis
+    timeout: 30d
+  data:
+    redis:
+      host: 192.168.100.104
+      port: 6379
+      password: xgw18720322169.
+      database: 1
+
+springdoc:
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.shea.aipassagecreator.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
