@@ -37,6 +37,7 @@ public class User implements Serializable {
 
     private String userAccount;
     private String userPassword;
+    private String githubId;
     private String userName;
     private String userAvatar;
     private String userProfile;

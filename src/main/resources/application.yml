@@ -23,7 +23,10 @@ spring:
       port: 6379
       password: xgw18720322169.
       database: 1
+  profiles:
+    active: local
 
+# SpringDoc OpenAPI & Knife4j 配置（第三方库配置项）
 springdoc:
   group-configs:
     - group: 'default'

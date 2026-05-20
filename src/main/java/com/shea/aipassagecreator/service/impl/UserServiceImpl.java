@@ -4,6 +4,7 @@ package com.shea.aipassagecreator.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.shea.aipassagecreator.constant.UserConstant;
 import com.shea.aipassagecreator.domain.dto.UserAddDTO;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.LoginUserVO;
@@ -13,6 +14,7 @@ import com.shea.aipassagecreator.mapper.UserMapper;
 import com.shea.aipassagecreator.service.IUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.BeanUtils;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
@@ -101,6 +103,34 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         boolean save = this.save(user);
         throwIf(!save, new BusinessException(ErrorCode.PARAMS_ERROR, "新增用户失败"));
         return true;
+    }
+
+    @Override
+    public User handleGithubLogin(OAuth2User oAuth2User) {
+        // GitHub 返回的 id 是 Integer 类型,需要正确转换为 String
+        Object githubIdObj = oAuth2User.getAttribute("id");
+        String githubId = githubIdObj != null ? githubIdObj.toString() : null;
+        String login = oAuth2User.getAttribute("login");
+        String name = oAuth2User.getAttribute("name");
+        String avatarUrl = oAuth2User.getAttribute("avatar_url");
+        
+        QueryWrapper queryWrapper = new QueryWrapper();
+        queryWrapper.eq("githubId", githubId);
+        User user = this.getOne(queryWrapper);
+        
+        if (user == null) {
+            // 新用户，创建账号
+            user = new User();
+            user.setGithubId(githubId);
+            user.setUserName(name != null ? name : login);
+            user.setUserAvatar(avatarUrl);
+            user.setUserAccount("github_" + githubId);
+            user.setUserPassword("");
+            user.setUserRole(UserConstant.DEFAULT_ROLE);
+            this.save(user);
+        }
+        
+        return user;
     }
 
     @Override

@@ -25,3 +25,7 @@ INSERT INTO user (id, userAccount, userPassword, userName, userAvatar, userProfi
                                                                                                   (1, 'admin', '10670d38ec32fa8102be6a37f8cb52bf', '管理员', 'https://www.codefather.cn/logo.png', '系统管理员', 'admin'),
                                                                                                   (2, 'user', '10670d38ec32fa8102be6a37f8cb52bf', '普通用户', 'https://www.codefather.cn/logo.png', '我是一个普通用户', 'user'),
                                                                                                   (3, 'test', '10670d38ec32fa8102be6a37f8cb52bf', '测试账号', 'https://www.codefather.cn/logo.png', '这是一个测试账号', 'user');
+
+-- 添加 githubId 字段，用于关联 GitHub 用户
+alter table user add column githubId varchar(64) null comment 'GitHub用户ID' after userAccount;
+alter table user add unique key uk_githubId (githubId);

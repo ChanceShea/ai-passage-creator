@@ -6,6 +6,7 @@ import com.shea.aipassagecreator.domain.dto.UserAddDTO;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.LoginUserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 /**
  * <p>
@@ -28,4 +29,6 @@ public interface IUserService extends IService<User> {
     LoginUserVO getLoginUserVO(HttpServletRequest request);
 
     boolean addUser(UserAddDTO dto);
+
+    User handleGithubLogin(OAuth2User oAuth2User);
 }
