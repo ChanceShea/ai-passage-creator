@@ -29,7 +29,7 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/auth/**", "/oauth2/**", "/login/**","/v3/api-docs").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
@@ -42,10 +42,10 @@ public class SecurityConfig {
                             request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
 
                             // 重定向到前端
-                            response.sendRedirect("http://localhost:5173?loginSuccess=true");
+                            response.sendRedirect("http://localhost:5173");
                         })
                         .failureHandler((request, response, exception) -> {
-                            response.sendRedirect("http://localhost:5173?loginError=true");
+                            response.sendRedirect("http://localhost:5173");
                         })
                 )
                 .logout(logout -> logout
