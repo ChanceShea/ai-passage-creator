@@ -30,7 +30,16 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/**","/v3/api-docs").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll() // 放行OPTIONS预检请求
                         .anyRequest().authenticated()
+                )
+                // API请求未认证时返回401,而不是重定向
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(40100);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"code\":40100,\"message\":\"未登录\"}");
+                        })
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler((request, response, authentication) -> {

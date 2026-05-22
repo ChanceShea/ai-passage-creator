@@ -24,9 +24,9 @@ public class Result<T> {
         return new Result<>(200, "Success", data);
     }
 
-    public static <T> Result<T> success(String message) {
-        return new Result<>(200, message, null);
-    }
+//    public static <T> Result<T> success(String message) {
+//        return new Result<>(200, message, null);
+//    }
 
     public static <T> Result<T> fail(int code, String message) {
         return new Result<>(code, message, null);
