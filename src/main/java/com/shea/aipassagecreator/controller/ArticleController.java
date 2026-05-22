@@ -63,6 +63,12 @@ public class ArticleController {
         return Result.success(taskId);
     }
 
+    /**
+     * 获取文章生成进度
+     * @param taskId 任务ID
+     * @param request HTTP请求
+     * @return 文章生成进度
+     */
     @GetMapping("/progress/{taskId}")
     public SseEmitter getProgress(@PathVariable("taskId") String taskId,HttpServletRequest request) {
         throwIf(taskId == null, new BusinessException(ErrorCode.PARAMS_ERROR,"任务ID不能为空"));
@@ -73,6 +79,12 @@ public class ArticleController {
         return sseEmitter;
     }
 
+    /**
+     * 获取文章详情
+     * @param taskId 任务ID
+     * @param request HTTP请求
+     * @return 文章详情
+     */
     @GetMapping("/{taskId}")
     @AuthCheck(mustRole = UserConstant.DEFAULT_ROLE)
     public Result<ArticleVO> getArticle(@PathVariable("taskId") String taskId,HttpServletRequest request) {
@@ -83,6 +95,12 @@ public class ArticleController {
         return Result.success(articleVO);
     }
 
+    /**
+     * 分页获取文章列表
+     * @param dto 查询文章的DTO
+     * @param request HTTP请求
+     * @return 文章列表
+     */
     @PostMapping("/list")
     @AuthCheck(mustRole = UserConstant.DEFAULT_ROLE)
     public Result<Page<ArticleVO>> listArticle(@RequestBody ArticleQueryDTO dto,HttpServletRequest request) {
@@ -91,6 +109,12 @@ public class ArticleController {
         return Result.success(articleVOPage);
     }
 
+    /**
+     * 删除文章
+     * @param request 删除文章的请求
+     * @param httpServletRequest HTTP请求
+     * @return 是否删除成功
+     */
     @DeleteMapping("/delete")
     @AuthCheck(mustRole = UserConstant.DEFAULT_ROLE)
     public Result<Boolean> deleteArticle(@RequestBody DeleteRequest request,HttpServletRequest httpServletRequest) {
