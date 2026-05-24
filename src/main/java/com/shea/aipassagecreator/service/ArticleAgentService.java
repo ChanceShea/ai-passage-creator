@@ -4,6 +4,7 @@ import cn.hutool.json.JSONException;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.shea.aipassagecreator.constant.PromptConstant;
+import com.shea.aipassagecreator.domain.dto.ImageDTO;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
 import com.shea.aipassagecreator.enums.ImageMethodEnum;
 import com.shea.aipassagecreator.enums.SseMessageTypeEnum;
@@ -33,10 +34,13 @@ public class ArticleAgentService {
 
     @Resource
     private ChatModel dashScopeChatModel;
-    @Resource
-    private IImageSearchService imageSearchService;
+//    @Resource
+//    @Qualifier("nanoBananaService")
+//    private IImageSearchService imageSearchService;
     @Resource
     private CosService cosService;
+    @Resource
+    private ImageServiceStrategy imageServiceStrategy;
 
     /**
      * 执行文章生成
@@ -81,17 +85,27 @@ public class ArticleAgentService {
             state.setFullContent(content);
             return;
         }
-        StringBuilder sb = new StringBuilder();
-        String[] split = content.split("\n");
-        for (String s : split) {
-            sb.append(s).append("\n");
-            if (s.startsWith("## ")) {
-                String sectionTitle = s.substring(3).trim();
-                insertImageAfterSection(sb,images,sectionTitle);
+        String fullContent = content;
+        for (ArticleState.ImageResult image : images) {
+            String placeholder = image.getPlaceholderId();
+            if (placeholder != null && !placeholder.isEmpty()) {
+                String imageMarkdown = "![" + image.getDescription() + "]( " + image.getUrl() + ")";
+                fullContent = fullContent.replace(placeholder, imageMarkdown);
             }
         }
-        state.setFullContent(sb.toString());
-        log.info("图文合成完成，fullContentLength={}", sb.length());
+//        StringBuilder sb = new StringBuilder();
+//        String[] split = content.split("\n");
+//        for (String s : split) {
+//            sb.append(s).append("\n");
+//            if (s.startsWith("## ")) {
+//                String sectionTitle = s.substring(3).trim();
+//                insertImageAfterSection(sb,images,sectionTitle);
+//            }
+//        }
+//        state.setFullContent(sb.toString());
+//        log.info("图文合成完成，fullContentLength={}", sb.length());
+        state.setFullContent(fullContent);
+        log.info("图文合成完成，fullContentLength={}", fullContent.length());
     }
 
     /**
@@ -120,17 +134,27 @@ public class ArticleAgentService {
         List<ArticleState.ImageResult> imageResults = new ArrayList<>();
         for (ArticleState.ImageRequirement requirement : state.getImageRequirementList()) {
             log.info("智能体5：开始生成配图，position={},keywords={}", requirement.getPosition(), requirement.getKeywords());
-            String imageUrl = imageSearchService.searchImage(requirement.getKeywords());
+//            String imageUrl = imageSearchService.searchImage(requirement.getKeywords());
+            ImageDTO dto = ImageDTO.builder()
+                    .keywords(requirement.getKeywords())
+                    .prompt(requirement.getPrompt())
+                    .position(requirement.getPosition())
+                    .type(requirement.getType())
+                    .build();
+            ImageServiceStrategy.ImageResult result = imageServiceStrategy.getImageAndUpload(requirement.getImageSource(), dto);
+            String cosUrl = result.cosUrl();
+            ImageMethodEnum method = result.method();
+            ArticleState.ImageResult imageResult = buildImageResult(requirement, cosUrl, method);
             // 降级策略
-            ImageMethodEnum method = imageSearchService.getMethod();
-            if (imageUrl == null) {
-                imageUrl = imageSearchService.getFallbackImage(requirement.getPosition());
-                method = ImageMethodEnum.PICSUM;
-                log.warn("智能体5：图片检索失败，使用降级方案，position={}", requirement.getPosition());
-            }
-            String finalImageUrl = cosService.useDirectUrl(imageUrl);
+//            ImageMethodEnum method = imageSearchService.getMethod();
+//            if (imageUrl == null) {
+//                imageUrl = imageSearchService.getFallbackImage(requirement.getPosition());
+//                method = ImageMethodEnum.PICSUM;
+//                log.warn("智能体5：图片检索失败，使用降级方案，position={}", requirement.getPosition());
+//            }
+//            String finalImageUrl = cosService.useDirectUrl(imageUrl);
             // 构建配图结果
-            ArticleState.ImageResult imageResult = buildImageResult(requirement,finalImageUrl,method);
+//            ArticleState.ImageResult imageResult = buildImageResult(requirement,finalImageUrl,method);
             imageResults.add(imageResult);
 
             // 发送配图生成完成的消息
@@ -154,9 +178,10 @@ public class ArticleAgentService {
         imageResult.setPosition(requirement.getPosition());
         imageResult.setSectionTitle(requirement.getSectionTitle());
         imageResult.setKeywords(requirement.getKeywords());
-        imageResult.setDescription(method.getValue());
+        imageResult.setDescription(requirement.getType());
         imageResult.setUrl(finalImageUrl);
         imageResult.setMethod(method.getValue());
+        imageResult.setPlaceholderId(requirement.getPlaceholderId());
         return imageResult;
     }
 
@@ -165,13 +190,79 @@ public class ArticleAgentService {
      * @param state 文章状态
      */
     private void agent4AnalyzeImageRequirement(ArticleState state) {
+//        String prompt = PromptConstant.AGENT4_IMAGE_REQUIREMENTS_PROMPT
+//                .replace("{mainTitle}",state.getTitle().getMainTitle())
+//                .replace("{content}",state.getContent());
+//        String content = callLlm(prompt);
+//        List<ArticleState.ImageRequirement> imageRequirements = parseJsonListResponse(content,ArticleState.ImageRequirement.class,"配图需求");
+//        state.setImageRequirementList(imageRequirements);
+//        log.info("智能体4：配图需求分析完成，imageRequirementList={}", imageRequirements.size());
+        String availableMethods = buildAvailableMethodsDescription(state.getEnabledImageMethods());
         String prompt = PromptConstant.AGENT4_IMAGE_REQUIREMENTS_PROMPT
                 .replace("{mainTitle}",state.getTitle().getMainTitle())
-                .replace("{content}",state.getContent());
+                .replace("{content}",state.getContent())
+                .replace("{availableMethods}", availableMethods);
         String content = callLlm(prompt);
-        List<ArticleState.ImageRequirement> imageRequirements = parseJsonListResponse(content,ArticleState.ImageRequirement.class,"配图需求");
-        state.setImageRequirementList(imageRequirements);
-        log.info("智能体4：配图需求分析完成，imageRequirementList={}", imageRequirements.size());
+        ArticleState.Agent4Result agent4Result = parseJsonResponse(content, ArticleState.Agent4Result.class, "配图需求");
+        state.setContent(agent4Result.getContentWithPlaceholders());
+        state.setImageRequirementList(agent4Result.getImageRequirements());
+        log.info("智能体4：配图需求分析完成，count={}，已在正文中插入占位符", agent4Result.getImageRequirements().size());
+    }
+
+    /**
+     * 构建可用的配图方法描述
+     * @param enabledImageMethods 启用的配图方法
+     * @return 描述
+     */
+    private String buildAvailableMethodsDescription(List<String> enabledImageMethods) {
+        if (enabledImageMethods == null || enabledImageMethods.isEmpty()) {
+            return getAllMethodsDescription();
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String method : enabledImageMethods) {
+            ImageMethodEnum methodEnum = ImageMethodEnum.getByValue(method);
+            if (methodEnum != null && !methodEnum.isFallback()) {
+                sb.append("    - ")
+                        .append(methodEnum.getValue())
+                        .append(": ")
+                        .append(getMethodUsageDescription(methodEnum))
+                        .append("\n");
+            }
+        }
+        return sb.toString();
+
+    }
+
+    /**
+     * 获取配图方式的使用说明
+     * @param method 配图方式
+     * @return 使用说明
+     */
+    private String getMethodUsageDescription(ImageMethodEnum method) {
+        return switch (method) {
+            case PEXELS -> "适合真实场景、产品照片、人物照片、自然风景等写实图片";
+            case NANO_BANANA -> "适合创意插画、信息图表、需要文字渲染、抽象概念、艺术风格等 AI 生成图片";
+            case MERMAID -> "适合流程图、架构图、时序图、关系图、甘特图等结构化图表";
+            case ICONIFY -> "适合图标、符号、小型装饰性图标（如：箭头、勾选、星星、心形等）";
+            case EMOJI_PACK -> "适合表情包、搞笑图片、轻松幽默的配图";
+            case SVG_DIAGRAM -> "适合概念示意图、思维导图样式、逻辑关系展示（不涉及精确数据）";
+            default -> method.getDescription();
+        };
+    }
+
+    /**
+     * 获取所有配图方式的完整描述
+     * @return 描述
+     */
+    private String getAllMethodsDescription() {
+        return """
+               - PEXELS: 适合真实场景、产品照片、人物照片、自然风景等写实图片
+               - NANO_BANANA: 适合创意插画、信息图表、需要文字渲染、抽象概念、艺术风格等 AI 生成图片
+               - MERMAID: 适合流程图、架构图、时序图、关系图、甘特图等结构化图表
+               - ICONIFY: 适合图标、符号、小型装饰性图标（如：箭头、勾选、星星、心形等）
+               - EMOJI_PACK: 适合表情包、搞笑图片、轻松幽默的配图
+               - SVG_DIAGRAM: 适合概念示意图、思维导图样式、逻辑关系展示（不涉及精确数据）
+               """;
     }
 
     /**

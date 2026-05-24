@@ -12,7 +12,7 @@ public enum ImageMethodEnum {
 
     PEXELS("PEXELS","Pexels图库",false,false),
     NANO_BANANA("NANO_BANANA","Nano Banana AI生图",true,false),
-    MERMAIND("MERMAID","Mermaid AI生图",true,false),
+    MERMAID("MERMAID","Mermaid AI生图",true,false),
     ICONIFY("ICONIFY","Iconify图标库",false,false),
     EMOJI_PACK("EMOJI_PACK","表情包检索",false,false),
     SVG_DIAGRAM("SVG_DIAGRAM","SVG概念示意图",true,false),

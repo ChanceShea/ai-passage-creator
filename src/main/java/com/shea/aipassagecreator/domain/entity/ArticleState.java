@@ -63,6 +63,11 @@ public class ArticleState implements Serializable {
     private String fullContent;
 
     /**
+     * 允许的配图方式
+     */
+    private List<String> enabledImageMethods;
+
+    /**
      * 标题结果
      */
     @Data
@@ -98,6 +103,18 @@ public class ArticleState implements Serializable {
         private String type;
         private String sectionTitle;
         private String keywords;
+        /**
+         * 图片来源
+         */
+        private String imageSource;
+        /**
+         * 图片描述
+         */
+        private String prompt;
+        /**
+         * 占位符ID，用于在正文中定位插入位置
+         */
+        private String placeholderId;
     }
 
     /**
@@ -111,5 +128,24 @@ public class ArticleState implements Serializable {
         private String keywords;
         private String sectionTitle;
         private String description;
+        /**
+         * 占位符ID，用于在正文中定位插入位置
+         */
+        private String placeholderId;
+    }
+
+    /**
+     * 智能体4输出结果
+     */
+    @Data
+    public static class Agent4Result implements Serializable {
+        /**
+         * 带占位符的正文内容
+         */
+        private String contentWithPlaceholders;
+        /**
+         * 图片要求列表
+         */
+        private List<ImageRequirement> imageRequirements;
     }
 }
