@@ -6,6 +6,7 @@ import cn.hutool.json.JSONUtil;
 import com.shea.aipassagecreator.constant.PromptConstant;
 import com.shea.aipassagecreator.domain.dto.ImageDTO;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
+import com.shea.aipassagecreator.enums.ArticleStyleEnum;
 import com.shea.aipassagecreator.enums.ImageMethodEnum;
 import com.shea.aipassagecreator.enums.SseMessageTypeEnum;
 import jakarta.annotation.Resource;
@@ -305,7 +306,8 @@ public class ArticleAgentService {
         String prompt = PromptConstant.AGENT3_CONTENT_PROMPT
                 .replace("{mainTitle}", state.getTitle().getMainTitle())
                 .replace("{subTitle}", state.getTitle().getSubTitle())
-                .replace("{outline}", outlineText);
+                .replace("{outline}", outlineText)
+                + getStylePrompt(state.getStyle());
         String content = callLlmWithStreaming(prompt,streamHandler,AGENT3_STREAMING);
         state.setContent(content);
         log.info("智能体3：内容生成完成，contentLength={}", content.length());
@@ -342,7 +344,8 @@ public class ArticleAgentService {
     private void agent2GenerateOutline(ArticleState state, Consumer<String> streamHandler) {
         String prompt = PromptConstant.AGENT2_OUTLINE_PROMPT
                 .replace("{mainTitle}", state.getTitle().getMainTitle())
-                .replace("{subTitle}", state.getTitle().getSubTitle());
+                .replace("{subTitle}", state.getTitle().getSubTitle())
+                + getStylePrompt(state.getStyle());
 
         String content = callLlmWithStreaming(prompt,streamHandler,AGENT2_STREAMING);
         ArticleState.OutlineResult outlineResult = parseJsonResponse(content,ArticleState.OutlineResult.class,"大纲");
@@ -372,11 +375,35 @@ public class ArticleAgentService {
      */
     private void agent1GenerateTitle(ArticleState state) {
         String prompt = PromptConstant.AGENT1_TITLE_PROMPT
-                .replace("{topic}",state.getTopic());
+                .replace("{topic}",state.getTopic())
+                + getStylePrompt(state.getStyle());
 
         String content = callLlm(prompt);
         ArticleState.TitleResult titleResult = parseJsonResponse(content,ArticleState.TitleResult.class,"标题");
         state.setTitle(titleResult);
         log.info("智能体1：标题生成完成，mainTitle={}", titleResult.getMainTitle());
+    }
+
+    /**
+     * 根据风格获取对应的Prompt附加内容
+     * @param style 样式
+     * @return 提示词
+     */
+    private String getStylePrompt(String style) {
+        if (style == null || style.isEmpty()) {
+            return "";
+        }
+
+        ArticleStyleEnum styleEnum = ArticleStyleEnum.getEnumByValue(style);
+        if (styleEnum == null) {
+            return "";
+        }
+
+        return switch (styleEnum) {
+            case TECH -> PromptConstant.STYLE_TECH_PROMPT;
+            case EMOTIONAL -> PromptConstant.STYLE_EMOTIONAL_PROMPT;
+            case EDUCATIONAL -> PromptConstant.STYLE_EDUCATIONAL_PROMPT;
+            case HUMOROUS -> PromptConstant.STYLE_HUMOROUS_PROMPT;
+        };
     }
 }

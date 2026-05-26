@@ -57,13 +57,14 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     @Override
-    public String createArticleTask(String topic, User loginUser) {
+    public String createArticleTask(String topic, String style, User loginUser) {
         String taskId = IdUtil.simpleUUID();
 
         Article article = new Article();
         article.setTaskId(taskId);
         article.setTopic(topic);
         article.setUserId(loginUser.getId());
+        article.setStyle(style);
         article.setStatus(ArticleStatusEnum.PENDING.getValue());
         article.setCreateTime(LocalDateTime.now());
 
@@ -140,6 +141,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         }
         checkArticlePermission(byId,loginUser);
         return this.removeById(id);
+    }
+
+    @Override
+    public String createArticleTaskWithQuotaCheck(String topic, String style, User loginUser) {
+        return null;
     }
 
     /**

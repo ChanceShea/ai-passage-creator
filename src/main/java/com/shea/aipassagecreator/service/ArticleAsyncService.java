@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,13 +36,14 @@ public class ArticleAsyncService {
      * @param topic 文章选题
      */
     @Async("articleExecutor")
-    public void executeArticleGeneration(String taskId,String topic) {
+    public void executeArticleGeneration(String taskId, String topic, String style, List<String> enableImage) {
         log.info("异步任务开始，taskId={},topic={}", taskId, topic);
         try {
             articleService.updateArticleStatus(taskId, ArticleStatusEnum.PROCESSING, null);
             ArticleState state = new ArticleState();
             state.setTaskId(taskId);
             state.setTopic(topic);
+            state.setStyle(style);
             articleAgentService.executeArticleGeneration(state,message -> handleAgentMessage(taskId,message,state));
             articleService.updateArticleStatus(taskId,ArticleStatusEnum.COMPLETED,null);
             sendSseMessage(taskId, SseMessageTypeEnum.ALL_COMPLETE, Map.of("taskId",taskId));

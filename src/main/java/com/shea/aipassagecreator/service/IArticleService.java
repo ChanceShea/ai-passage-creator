@@ -24,7 +24,7 @@ public interface IArticleService extends IService<Article> {
 
     void updateArticleStatus(String taskId, ArticleStatusEnum status, String errorMessage);
 
-    String createArticleTask(String topic, User loginUser);
+    String createArticleTask(String topic, String style, User loginUser);
 
     void saveArticleContent(String taskId, ArticleState state);
 
@@ -33,4 +33,6 @@ public interface IArticleService extends IService<Article> {
     Page<ArticleVO> listArticleByPage(ArticleQueryDTO dto, User loginUser);
 
     boolean deleteArticle(String id, User loginUser);
+
+    String createArticleTaskWithQuotaCheck(String topic,String style, User loginUser);
 }

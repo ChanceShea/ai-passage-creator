@@ -98,6 +98,11 @@ public class Article implements Serializable {
     private String status;
 
     /**
+     * 文章风格：tech/emotional/educational/humorous
+     */
+    private String style;
+
+    /**
      * 错误信息
      */
     private String errorMessage;

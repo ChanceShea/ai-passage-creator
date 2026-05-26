@@ -116,8 +116,8 @@ public class CosService {
                     return null;
                 }
                 byte[] bytes = response.body().bytes();
-                response.header("Content-Type", "image/jpeg");
-                return uploadBytes(bytes,folder,url);
+                String contentType = response.header("Content-Type", "image/jpeg");
+                return uploadBytes(bytes,contentType,folder);
             }
         }catch (Exception e) {
             log.error("从URL上传图片到COS失败：{}", url, e);

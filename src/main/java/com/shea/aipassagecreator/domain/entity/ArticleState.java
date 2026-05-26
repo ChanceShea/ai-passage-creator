@@ -68,6 +68,11 @@ public class ArticleState implements Serializable {
     private List<String> enabledImageMethods;
 
     /**
+     * 文章风格
+     */
+    private String style;
+
+    /**
      * 标题结果
      */
     @Data

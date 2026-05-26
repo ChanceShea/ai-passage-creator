@@ -10,6 +10,7 @@ import com.shea.aipassagecreator.domain.dto.ArticleCreateDTO;
 import com.shea.aipassagecreator.domain.dto.ArticleQueryDTO;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.ArticleVO;
+import com.shea.aipassagecreator.enums.ArticleStyleEnum;
 import com.shea.aipassagecreator.exception.BusinessException;
 import com.shea.aipassagecreator.exception.ErrorCode;
 import com.shea.aipassagecreator.manager.SseEmitterManager;
@@ -56,10 +57,10 @@ public class ArticleController {
     public Result<String> createArticle(@RequestBody ArticleCreateDTO dto, HttpServletRequest request) {
         throwIf(dto == null, new BusinessException(ErrorCode.PARAMS_ERROR));
         throwIf(dto.getTopic() == null || dto.getTopic().trim().isEmpty(),new BusinessException(ErrorCode.PARAMS_ERROR,"文章选题不能为空"));
-
+        throwIf(!ArticleStyleEnum.isValid(dto.getStyle()),new BusinessException(ErrorCode.PARAMS_ERROR,"无效的文章风格"));
         User loginUser = userService.getLoginUser(request);
-        String taskId = articleService.createArticleTask(dto.getTopic(),loginUser);
-        articleAsyncService.executeArticleGeneration(taskId, dto.getTopic());
+        String taskId = articleService.createArticleTask(dto.getTopic(),dto.getStyle(),loginUser);
+        articleAsyncService.executeArticleGeneration(taskId, dto.getTopic(),dto.getStyle(),dto.getEnableImageMethods());
         return Result.success(taskId);
     }
 
