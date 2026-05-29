@@ -63,9 +63,24 @@ public class ArticleState implements Serializable {
     private String fullContent;
 
     /**
+     * 用户补充描述
+     */
+    private String userDescription;
+
+    /**
+     * 当前阶段
+     */
+    private String phase;
+
+    /**
      * 允许的配图方式
      */
     private List<String> enabledImageMethods;
+
+    /**
+     * 标题方案列表（智能体1输出）
+     */
+    private List<TitleOption> titleOptions;
 
     /**
      * 文章风格
@@ -152,5 +167,11 @@ public class ArticleState implements Serializable {
          * 图片要求列表
          */
         private List<ImageRequirement> imageRequirements;
+    }
+
+    @Data
+    public static class TitleOption implements Serializable {
+        private String mainTitle;
+        private String subTitle;
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
@@ -24,14 +25,25 @@ public class SecurityConfig {
 
     private final IUserService userService;
 
+    // 让 Spring Security 完全忽略这些静态资源
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return (web) -> web.ignoring().requestMatchers(
+                "/webjars/**",
+                "/swagger-ui/**",
+                "/v3/api-docs/**",
+                "/doc.html"
+        );
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/oauth2/**", "/login/**","/v3/api-docs").permitAll()
+                        .requestMatchers("/auth/**", "/oauth2/**", "/user/login","/user/register","/doc.html").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll() // 放行OPTIONS预检请求
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 // API请求未认证时返回401,而不是重定向
                 .exceptionHandling(exceptions -> exceptions

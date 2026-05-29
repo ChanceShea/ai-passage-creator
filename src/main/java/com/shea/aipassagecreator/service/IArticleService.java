@@ -8,7 +8,10 @@ import com.shea.aipassagecreator.domain.entity.Article;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.ArticleVO;
+import com.shea.aipassagecreator.enums.ArticlePhaseEnum;
 import com.shea.aipassagecreator.enums.ArticleStatusEnum;
+
+import java.util.List;
 
 /**
  * <p>
@@ -33,6 +36,16 @@ public interface IArticleService extends IService<Article> {
     Page<ArticleVO> listArticleByPage(ArticleQueryDTO dto, User loginUser);
 
     boolean deleteArticle(String id, User loginUser);
+
+    void confirmTitle(String taskId, String mainTitle, String subTitle,String userDescription,User loginUser);
+
+    void confirmOutline(String taskId, List<ArticleState.OutlineSection> outlines,User loginUser);
+
+    void updatePhase(String taskId, ArticlePhaseEnum phase);
+
+    void saveTitleOptions(String taskId,List<ArticleState.TitleOption> titleOptions);
+
+    List<ArticleState.OutlineSection> aiModifyOutline(String taskId,String modifySuggestion,User loginUser);
 
     String createArticleTaskWithQuotaCheck(String topic,String style, User loginUser);
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -29,7 +30,7 @@ public class AuthInterceptor {
     private final IUserService userService;
 
     @Around("@annotation(authCheck)")
-    public Object around(ProceedingJoinPoint joinPoint, AuthCheck authCheck) throws Throwable {
+    public Object around(ProceedingJoinPoint joinPoint, @NotNull AuthCheck authCheck) throws Throwable {
         String mustRole = authCheck.mustRole();
         UserRoleEnum enumByValue = UserRoleEnum.getEnumByValue(mustRole);
         if (enumByValue == null) {

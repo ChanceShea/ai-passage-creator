@@ -1,13 +1,15 @@
 package com.shea.aipassagecreator.controller;
 
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.shea.aipassagecreator.annotation.AuthCheck;
 import com.shea.aipassagecreator.common.DeleteRequest;
 import com.shea.aipassagecreator.common.Result;
 import com.shea.aipassagecreator.constant.UserConstant;
-import com.shea.aipassagecreator.domain.dto.ArticleCreateDTO;
-import com.shea.aipassagecreator.domain.dto.ArticleQueryDTO;
+import com.shea.aipassagecreator.domain.dto.*;
+import com.shea.aipassagecreator.domain.entity.ArticleState;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.ArticleVO;
 import com.shea.aipassagecreator.enums.ArticleStyleEnum;
@@ -22,6 +24,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
 
 import static com.shea.aipassagecreator.exception.ThrowUtils.throwIf;
 
@@ -60,7 +64,7 @@ public class ArticleController {
         throwIf(!ArticleStyleEnum.isValid(dto.getStyle()),new BusinessException(ErrorCode.PARAMS_ERROR,"无效的文章风格"));
         User loginUser = userService.getLoginUser(request);
         String taskId = articleService.createArticleTask(dto.getTopic(),dto.getStyle(),loginUser);
-        articleAsyncService.executeArticleGeneration(taskId, dto.getTopic(),dto.getStyle(),dto.getEnableImageMethods());
+        articleAsyncService.executePhase1(taskId, dto.getTopic(),dto.getStyle());
         return Result.success(taskId);
     }
 
@@ -123,5 +127,43 @@ public class ArticleController {
         User loginUser = userService.getLoginUser(httpServletRequest);
         boolean res = articleService.deleteArticle(request.getId(), loginUser);
         return Result.success(res);
+    }
+
+    @PostMapping("/confirm-title")
+    public Result confirmTitle(@RequestBody ArticleConfirmTitleDTO dto, HttpServletRequest request) {
+        throwIf(dto == null, ErrorCode.PARAMS_ERROR);
+        throwIf(StrUtil.isBlank(dto.getTaskId()), ErrorCode.PARAMS_ERROR,"任务ID不能为空");
+        throwIf(StrUtil.isBlank(dto.getSelectedMainTitle()), ErrorCode.PARAMS_ERROR,"主标题不能为空");
+        throwIf(StrUtil.isBlank(dto.getSelectedSubTitle()), ErrorCode.PARAMS_ERROR,"副标题不能为空");
+        User loginUser = userService.getLoginUser(request);
+        articleService.confirmTitle(
+                dto.getTaskId(),dto.getSelectedMainTitle(),
+                dto.getSelectedSubTitle(),dto.getUserDescription(),loginUser
+        );
+        articleAsyncService.executePhase2(dto.getTaskId());
+        return Result.success(null);
+    }
+
+    @PostMapping("/confirm-outline")
+    public Result confirmOutline(@RequestBody ArticleConfirmOutlineDTO dto, HttpServletRequest request) {
+        throwIf(dto == null, ErrorCode.PARAMS_ERROR);
+        throwIf(StrUtil.isBlank(dto.getTaskId()), ErrorCode.PARAMS_ERROR,"任务ID不能为空");
+        throwIf(CollUtil.isEmpty(dto.getOutlines()), ErrorCode.PARAMS_ERROR,"大纲不能为空");
+        User loginUser = userService.getLoginUser(request);
+        articleService.confirmOutline(
+                dto.getTaskId(), dto.getOutlines(), loginUser
+        );
+        articleAsyncService.executePhase3(dto.getTaskId());
+        return Result.success(null);
+    }
+
+    @PostMapping("/ai-modify-outline")
+    public Result<List<ArticleState.OutlineSection>> aiModifyOutline(@RequestBody ArticleAiModifyOutlineDTO dto, HttpServletRequest request) {
+        throwIf(dto == null, new BusinessException(ErrorCode.PARAMS_ERROR));
+        throwIf(StrUtil.isBlank(dto.getTaskId()),ErrorCode.PARAMS_ERROR,"任务ID不能为空");
+        throwIf(StrUtil.isBlank(dto.getModifySuggestion()),ErrorCode.PARAMS_ERROR,"修改建议不能为空");
+        return Result.success(articleService.aiModifyOutline(
+                dto.getTaskId(), dto.getModifySuggestion(), userService.getLoginUser(request))
+        );
     }
 }

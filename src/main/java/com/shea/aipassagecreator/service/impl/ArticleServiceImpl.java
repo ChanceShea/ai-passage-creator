@@ -11,10 +11,12 @@ import com.shea.aipassagecreator.domain.entity.Article;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
 import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.ArticleVO;
+import com.shea.aipassagecreator.enums.ArticlePhaseEnum;
 import com.shea.aipassagecreator.enums.ArticleStatusEnum;
 import com.shea.aipassagecreator.exception.BusinessException;
 import com.shea.aipassagecreator.exception.ErrorCode;
 import com.shea.aipassagecreator.mapper.ArticleMapper;
+import com.shea.aipassagecreator.service.ArticleAgentService;
 import com.shea.aipassagecreator.service.IArticleService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,12 @@ import static com.shea.aipassagecreator.exception.ThrowUtils.throwIf;
 @Service
 @Slf4j
 public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> implements IArticleService {
+
+    private final ArticleAgentService articleAgentService;
+
+    public ArticleServiceImpl(ArticleAgentService articleAgentService) {
+        this.articleAgentService = articleAgentService;
+    }
 
     @Override
     public Article getByTaskId(String taskId) {
@@ -143,6 +151,117 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         return this.removeById(id);
     }
 
+    /**
+     * 确认文章标题
+     * @param taskId 任务ID
+     * @param mainTitle 主标题
+     * @param subTitle 副标题
+     * @param userDescription 用户补充描述
+     * @param loginUser 当前登录用户
+     */
+    @Override
+    public void confirmTitle(String taskId, String mainTitle, String subTitle, String userDescription, User loginUser) {
+        Article article = getByTaskId(taskId);
+        throwIf(article == null,new BusinessException(ErrorCode.NOT_FOUND_ERROR,"文章不存在"));
+        // 校验权限
+        checkArticlePermission(article,loginUser);
+        // 校验当前阶段必须是TITLE_SELECTING
+        ArticlePhaseEnum phase = ArticlePhaseEnum.getByValue(article.getPhase());
+        throwIf(phase != ArticlePhaseEnum.TITLE_SELECTING,new BusinessException(ErrorCode.OPERATION_ERROR,"当前阶段不允许此操作"));
+        // 保存用户选的标题和补充描述
+        article.setMainTitle(mainTitle);
+        article.setSubTitle(subTitle);
+        article.setUserDescription(userDescription);
+        article.setPhase(ArticlePhaseEnum.OUTLINE_GENERATING.getValue());
+        this.updateById(article);
+        log.info("用户确认标题，taskId={},mainTitle={}",taskId,mainTitle);
+    }
+
+    /**
+     * 确认文章大纲
+     * @param taskId 任务ID
+     * @param outlines 大纲
+     * @param loginUser 当前登录用户
+     */
+    @Override
+    public void confirmOutline(String taskId, List<ArticleState.OutlineSection> outlines, User loginUser) {
+        Article article = getByTaskId(taskId);
+        throwIf(article == null,new BusinessException(ErrorCode.NOT_FOUND_ERROR,"文章不存在"));
+        // 校验权限
+        checkArticlePermission(article,loginUser);
+        ArticlePhaseEnum phase = ArticlePhaseEnum.getByValue(article.getPhase());
+        throwIf(phase != ArticlePhaseEnum.OUTLINE_EDITING,ErrorCode.OPERATION_ERROR,"当前阶段不允许此操作");
+        // 保存用户编辑后的大纲
+        article.setOutline(JSONUtil.toJsonStr(outlines));
+        article.setPhase(ArticlePhaseEnum.CONTENT_GENERATING.getValue());
+        this.updateById(article);
+        log.info("用户确认大纲，taskId={},sectionCount={}",taskId,outlines.size());
+    }
+
+    /**
+     * 更新文章阶段
+     * @param taskId 任务ID
+     * @param phase 阶段
+     */
+    @Override
+    public void updatePhase(String taskId, ArticlePhaseEnum phase) {
+        Article article = getByTaskId(taskId);
+        if (article == null) {
+            log.error("文章记录不存在，taskId={}", taskId);
+            return;
+        }
+        article.setPhase(phase.getValue());
+        this.updateById(article);
+        log.info("文章阶段更新完成，taskId={},phase={}", taskId, phase.getValue());
+    }
+
+    /**
+     * 保存文章标题选项
+     * @param taskId 任务ID
+     * @param titleOptions 标题选项
+     */
+    @Override
+    public void saveTitleOptions(String taskId, List<ArticleState.TitleOption> titleOptions) {
+        Article article = getByTaskId(taskId);
+        if (article == null) {
+            log.error("文章记录不存在，taskId={}", taskId);
+            return;
+        }
+        article.setTitleOptions(JSONUtil.toJsonStr(titleOptions));
+        this.updateById(article);
+        log.info("文章标题选项保存完成，taskId={},optionsCount={}", taskId, titleOptions.size());
+    }
+
+    /**
+     * AI修改文章大纲
+     * @param taskId 任务ID
+     * @param modifySuggestion 修改建议
+     * @param loginUser 当前登录用户
+     * @return 修改后的文章大纲
+     */
+    @Override
+    public List<ArticleState.OutlineSection> aiModifyOutline(String taskId, String modifySuggestion, User loginUser) {
+        Article article = getByTaskId(taskId);
+        throwIf(article == null, ErrorCode.NOT_FOUND_ERROR, "文章不存在");
+        // 校验权限
+        checkArticlePermission(article,loginUser);
+        ArticlePhaseEnum phase = ArticlePhaseEnum.getByValue(article.getPhase());
+        throwIf(phase != ArticlePhaseEnum.OUTLINE_EDITING,ErrorCode.OPERATION_ERROR,"当前阶段不允许此操作");
+        List<ArticleState.OutlineSection> currentOutline = JSONUtil.toList(article.getOutline(), ArticleState.OutlineSection.class);
+        List<ArticleState.OutlineSection> modifyOutline = articleAgentService.aiModifyOutline(article.getMainTitle(), article.getSubTitle(), currentOutline, modifySuggestion);
+        article.setOutline(JSONUtil.toJsonStr(modifyOutline));
+        this.updateById(article);
+        log.info("AI修改文章大纲完成，taskId={},sectionsCount={}", taskId,modifyOutline.size());
+        return modifyOutline;
+    }
+
+    /**
+     * 创建文章任务并检查配额
+     * @param topic 文章主题
+     * @param style 文章风格
+     * @param loginUser 当前登录用户
+     * @return 任务ID
+     */
     @Override
     public String createArticleTaskWithQuotaCheck(String topic, String style, User loginUser) {
         return null;

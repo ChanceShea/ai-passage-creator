@@ -11,4 +11,16 @@ public class ThrowUtils {
             throw exception;
         }
     }
+
+    public static void throwIf(boolean t, ErrorCode errorCode, String message) {
+        if (t) {
+            throw new BusinessException(errorCode, message);
+        }
+    }
+
+    public static void throwIf(boolean t, ErrorCode errorCode) {
+        if (t) {
+            throw new BusinessException(errorCode);
+        }
+    }
 }

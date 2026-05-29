@@ -1,9 +1,12 @@
 package com.shea.aipassagecreator.service;
 
 import cn.hutool.json.JSONUtil;
+import com.shea.aipassagecreator.domain.entity.Article;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
+import com.shea.aipassagecreator.enums.ArticlePhaseEnum;
 import com.shea.aipassagecreator.enums.ArticleStatusEnum;
 import com.shea.aipassagecreator.enums.SseMessageTypeEnum;
+import com.shea.aipassagecreator.exception.ErrorCode;
 import com.shea.aipassagecreator.manager.SseEmitterManager;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +16,8 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.shea.aipassagecreator.exception.ThrowUtils.throwIf;
 
 /**
  * 文章异步服务类
@@ -36,6 +41,7 @@ public class ArticleAsyncService {
      * @param topic 文章选题
      */
     @Async("articleExecutor")
+    @Deprecated
     public void executeArticleGeneration(String taskId, String topic, String style, List<String> enableImage) {
         log.info("异步任务开始，taskId={},topic={}", taskId, topic);
         try {
@@ -53,6 +59,129 @@ public class ArticleAsyncService {
         }catch (Exception e) {
             log.error("异步任务失败，taskId={}",taskId,e);
             articleService.updateArticleStatus(taskId,ArticleStatusEnum.FAILED,e.getMessage());
+            sendSseMessage(taskId,SseMessageTypeEnum.ERROR,Map.of("message",e.getMessage()));
+            sseEmitterManager.complete(taskId);
+        }
+    }
+
+    /**
+     * 执行文章生成阶段1：生成标题方案
+     * @param taskId 任务ID
+     * @param topic 文章选题
+     * @param style 文章风格
+     */
+    @Async("articleExecutor")
+    public void executePhase1(String taskId,String topic, String style) {
+        log.info("阶段1异步任务开始执行，taskId={},topic={},style={}", taskId, topic, style);
+        try {
+            // 更新文章状态
+            articleService.updateArticleStatus(taskId, ArticleStatusEnum.PROCESSING, null);
+            articleService.updatePhase(taskId, ArticlePhaseEnum.TITLE_GENERATING);
+            // 创建状态对象
+            ArticleState state = new ArticleState();
+            state.setTaskId(taskId);
+            state.setTopic(topic);
+            state.setStyle(style);
+
+            // 生成标题方案
+            articleAgentService.executePhase1_GenerateTitles(state, message -> handleAgentMessage(taskId, message, state));
+            articleService.saveTitleOptions(taskId, state.getTitleOptions());
+            articleService.updatePhase(taskId, ArticlePhaseEnum.TITLE_SELECTING);
+            Map<String,Object> data = new HashMap<>();
+            data.put("titleOptions",state.getTitleOptions());
+            sendSseMessage(taskId, SseMessageTypeEnum.TITLE_GENERATED, data);
+            log.info("阶段1异步任务完成，taskId={}", taskId);
+        }catch (Exception e) {
+            log.error("阶段1异步任务失败，taskId={}",taskId,e);
+            articleService.updateArticleStatus(taskId,ArticleStatusEnum.FAILED,e.getMessage());
+            // 推送错误信息
+            sendSseMessage(taskId,SseMessageTypeEnum.ERROR,Map.of("message",e.getMessage()));
+            sseEmitterManager.complete(taskId);
+        }
+    }
+
+    /**
+     * 执行文章生成阶段2：生成文章大纲
+     * @param taskId 任务ID
+     */
+    @Async("articleExecutor")
+    public void executePhase2(String taskId) {
+        log.info("阶段2异步任务开始执行，taskId={}", taskId);
+        try {
+            Article article = articleService.getByTaskId(taskId);
+            throwIf(article == null, ErrorCode.NOT_FOUND_ERROR,"文章不存在");
+            ArticleState state = new ArticleState();
+            state.setTaskId(taskId);
+            state.setStyle(article.getStyle());
+            state.setUserDescription(article.getUserDescription());
+            ArticleState.TitleResult titleResult = new ArticleState.TitleResult();
+            titleResult.setMainTitle(article.getMainTitle());
+            titleResult.setSubTitle(article.getSubTitle());
+            state.setTitle(titleResult);
+
+            // 执行生成大纲
+            articleAgentService.executePhase2_GenerateOutline(state,message->handleAgentMessage(taskId,message,state));
+            Article newArticle = articleService.getByTaskId(taskId);
+            newArticle.setOutline(JSONUtil.toJsonStr(state.getOutline().getSections()));
+            articleService.updateById(newArticle);
+
+            // 更新阶段
+            articleService.updatePhase(taskId, ArticlePhaseEnum.OUTLINE_EDITING);
+            // 推送消息
+            Map<String,Object> data = new HashMap<>();
+            data.put("outline",newArticle.getOutline());
+            sendSseMessage(taskId, SseMessageTypeEnum.OUTLINE_GENERATED, data);
+            log.info("阶段2异步任务完成，taskId={}", taskId);
+        }catch (Exception e) {
+            log.error("阶段2异步任务失败，taskId={}",taskId,e);
+            articleService.updateArticleStatus(taskId,ArticleStatusEnum.FAILED,e.getMessage());
+            // 推送错误信息
+            sendSseMessage(taskId,SseMessageTypeEnum.ERROR,Map.of("message",e.getMessage()));
+            sseEmitterManager.complete(taskId);
+        }
+    }
+
+    /**
+     * 执行文章生成阶段3：生成文章内容
+     * @param taskId 任务ID
+     */
+    @Async("articleExecutor")
+    public void executePhase3(String taskId) {
+        log.info("阶段3异步任务开始执行，taskId={}", taskId);
+        try {
+            Article article = articleService.getByTaskId(taskId);
+            throwIf(article == null, ErrorCode.NOT_FOUND_ERROR,"文章不存在");
+            ArticleState state = new ArticleState();
+            state.setTaskId(taskId);
+            state.setStyle(article.getStyle());
+            List<String> enabledMethods = null;
+            if (article.getEnabledImageMethods() != null) {
+                enabledMethods = JSONUtil.toList(article.getEnabledImageMethods(), String.class);
+            }
+            state.setEnabledImageMethods(enabledMethods);
+
+            // 设置标题
+            ArticleState.TitleResult titleResult = new ArticleState.TitleResult();
+            titleResult.setMainTitle(article.getMainTitle());
+            titleResult.setSubTitle(article.getSubTitle());
+            state.setTitle(titleResult);
+
+            // 设置大纲
+            List<ArticleState.OutlineSection> outline = JSONUtil.toList(article.getOutline(), ArticleState.OutlineSection.class);
+            ArticleState.OutlineResult outlineResult = new ArticleState.OutlineResult();
+            outlineResult.setSections(outline);
+            state.setOutline(outlineResult);
+            articleAgentService.executePhase3_GenerateContent(state,message -> handleAgentMessage(taskId,message,state));
+            // 保存文章到数据库
+            articleService.saveArticleContent(taskId,state);
+            articleService.updateArticleStatus(taskId, ArticleStatusEnum.COMPLETED, null);
+            sendSseMessage(taskId, SseMessageTypeEnum.ALL_COMPLETE, Map.of("taskId",taskId));
+            sseEmitterManager.complete(taskId);
+            log.info("阶段3异步任务完成，taskId={}", taskId);
+        }catch (Exception e) {
+            log.error("阶段3异步任务失败，taskId={}",taskId,e);
+            articleService.updateArticleStatus(taskId,ArticleStatusEnum.FAILED,e.getMessage());
+            // 推送错误信息
             sendSseMessage(taskId,SseMessageTypeEnum.ERROR,Map.of("message",e.getMessage()));
             sseEmitterManager.complete(taskId);
         }
