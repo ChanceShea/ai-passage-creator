@@ -21,4 +21,6 @@ public class LoginUserVO implements Serializable {
     private String userRole;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private LocalDateTime vipTime;
+
 }

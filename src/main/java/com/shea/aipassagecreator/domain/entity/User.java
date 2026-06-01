@@ -35,16 +35,47 @@ public class User implements Serializable {
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
+    /**
+     * 用户账号
+     */
     private String userAccount;
+    /**
+     * 用户密码
+     */
     private String userPassword;
-    private String githubId;
-    private String userName;
+    /**
+     * 用户头像
+     */
     private String userAvatar;
+    /**
+     * githubId
+     */
+    private String githubId;
+    /**
+     * 用户昵称
+     */
+    private String userName;
+    /**
+     * 用户简介
+     */
     private String userProfile;
+    /**
+     * 用户角色
+     */
     private String userRole;
+    /**
+     * 编辑时间
+     */
     private LocalDateTime editTime;
+    /**
+     * 创建时间
+     */
     private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+    /**
+     * 成为会员时间
+     */
+    private LocalDateTime vipTime;
+
 
     /**
      * 逻辑删除
