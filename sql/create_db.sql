@@ -96,5 +96,7 @@ CREATE TABLE IF NOT EXISTS payment_record (
                                               INDEX idx_createTime (createTime)
 ) COMMENT '支付记录表' COLLATE = utf8mb4_unicode_ci;
 
+ALTER TABLE user
+    ADD COLUMN quota INT DEFAULT 5 COMMENT '用户配额';
 
 

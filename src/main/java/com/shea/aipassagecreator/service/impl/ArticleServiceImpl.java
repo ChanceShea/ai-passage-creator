@@ -13,6 +13,7 @@ import com.shea.aipassagecreator.domain.entity.User;
 import com.shea.aipassagecreator.domain.vo.ArticleVO;
 import com.shea.aipassagecreator.enums.ArticlePhaseEnum;
 import com.shea.aipassagecreator.enums.ArticleStatusEnum;
+import com.shea.aipassagecreator.enums.ImageMethodEnum;
 import com.shea.aipassagecreator.exception.BusinessException;
 import com.shea.aipassagecreator.exception.ErrorCode;
 import com.shea.aipassagecreator.mapper.ArticleMapper;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static com.shea.aipassagecreator.constant.UserConstant.ADMIN_ROLE;
+import static com.shea.aipassagecreator.constant.UserConstant.VIP_ROLE;
 import static com.shea.aipassagecreator.exception.ThrowUtils.throwIf;
 
 /**
@@ -65,7 +67,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     @Override
-    public String createArticleTask(String topic, String style, User loginUser) {
+    public String createArticleTask(String topic, String style, List<String> enabledImageMethods, User loginUser) {
+        List<String> finalImageMethods = processImageMethods(enabledImageMethods, loginUser);
+
+        validateImageMethods(finalImageMethods,loginUser);
+
         String taskId = IdUtil.simpleUUID();
 
         Article article = new Article();
@@ -79,6 +85,22 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         this.save(article);
         log.info("文章任务创建完成，taskId={},userId={}", taskId,loginUser.getId());
         return taskId;
+    }
+
+    private void validateImageMethods(List<String> enabledImageMethods, User loginUser) {
+        if (enabledImageMethods == null || enabledImageMethods.isEmpty()) {
+            return;
+        }
+        // VIP或管理员无限制
+        if (isVipOrAdmin(loginUser)) {
+            return;
+        }
+        for (String method : enabledImageMethods) {
+            if (ImageMethodEnum.NANO_BANANA.getValue().equals(method) ||
+                    ImageMethodEnum.SVG_DIAGRAM.getValue().equals(method)) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "当前用户无权限使用该图片方法");
+            }
+        }
     }
 
     /**
@@ -243,6 +265,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     public List<ArticleState.OutlineSection> aiModifyOutline(String taskId, String modifySuggestion, User loginUser) {
         Article article = getByTaskId(taskId);
         throwIf(article == null, ErrorCode.NOT_FOUND_ERROR, "文章不存在");
+        throwIf(!isVipOrAdmin(loginUser),ErrorCode.NO_AUTH_ERROR,"AI修改大纲功能仅限VIP用户使用");
         // 校验权限
         checkArticlePermission(article,loginUser);
         ArticlePhaseEnum phase = ArticlePhaseEnum.getByValue(article.getPhase());
@@ -292,5 +315,33 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         if (!article.getUserId().equals(loginUser.getId()) && !ADMIN_ROLE.equals(loginUser.getUserRole())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
+    }
+
+    /**
+     * 处理图片方法
+     * @param enabledImageMethods 启用的图片方法
+     * @param loginUser 登录用户
+     * @return 处理后的图片方法
+     */
+    private List<String> processImageMethods(List<String> enabledImageMethods, User loginUser) {
+        // 如果用户已选择图片方法，则返回用户选择的图片方法
+        if(enabledImageMethods != null && !enabledImageMethods.isEmpty()) {
+            return enabledImageMethods;
+        }
+        // 如果用户不是VIP或管理员，则返回null，默认支持所有方法
+        if (isVipOrAdmin(loginUser)) {
+            return null;
+        }
+        // 普通用户，返回默认图片方法
+        return List.of(
+                ImageMethodEnum.PEXELS.getValue(),
+                ImageMethodEnum.MERMAID.getValue(),
+                ImageMethodEnum.ICONIFY.getValue(),
+                ImageMethodEnum.EMOJI_PACK.getValue()
+        );
+    }
+
+    private boolean isVipOrAdmin(User loginUser) {
+        return ADMIN_ROLE.equals(loginUser.getUserRole()) || VIP_ROLE.equals(loginUser.getUserRole());
     }
 }

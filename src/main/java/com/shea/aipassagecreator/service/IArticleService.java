@@ -27,7 +27,7 @@ public interface IArticleService extends IService<Article> {
 
     void updateArticleStatus(String taskId, ArticleStatusEnum status, String errorMessage);
 
-    String createArticleTask(String topic, String style, User loginUser);
+    String createArticleTask(String topic, String style, List<String> enabledImageMethods, User loginUser);
 
     void saveArticleContent(String taskId, ArticleState state);
 

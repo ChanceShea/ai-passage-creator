@@ -22,5 +22,6 @@ public class LoginUserVO implements Serializable {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private LocalDateTime vipTime;
+    private Integer quota;
 
 }

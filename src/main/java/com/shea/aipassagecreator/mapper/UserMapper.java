@@ -3,6 +3,7 @@ package com.shea.aipassagecreator.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import com.shea.aipassagecreator.domain.entity.User;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * <p>
@@ -14,4 +15,6 @@ import com.shea.aipassagecreator.domain.entity.User;
  */
 public interface UserMapper extends BaseMapper<User> {
 
+    @Update("update user set quota = quota - 1 where id = #{id} and quota > 0")
+    int decrementQuota(Long id);
 }

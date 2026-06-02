@@ -75,7 +75,10 @@ public class User implements Serializable {
      * 成为会员时间
      */
     private LocalDateTime vipTime;
-
+    /**
+     * 配额（用户可以使用的最大次数）
+     */
+    private Integer quota;
 
     /**
      * 逻辑删除

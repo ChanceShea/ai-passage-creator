@@ -63,7 +63,7 @@ public class ArticleController {
         throwIf(dto.getTopic() == null || dto.getTopic().trim().isEmpty(),new BusinessException(ErrorCode.PARAMS_ERROR,"文章选题不能为空"));
         throwIf(!ArticleStyleEnum.isValid(dto.getStyle()),new BusinessException(ErrorCode.PARAMS_ERROR,"无效的文章风格"));
         User loginUser = userService.getLoginUser(request);
-        String taskId = articleService.createArticleTask(dto.getTopic(),dto.getStyle(),loginUser);
+        String taskId = articleService.createArticleTask(dto.getTopic(),dto.getStyle(),dto.getEnableImageMethods(),loginUser);
         articleAsyncService.executePhase1(taskId, dto.getTopic(),dto.getStyle());
         return Result.success(taskId);
     }
