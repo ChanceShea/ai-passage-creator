@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONException;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.shea.aipassagecreator.annotation.AgentExecution;
 import com.shea.aipassagecreator.constant.PromptConstant;
 import com.shea.aipassagecreator.domain.dto.ImageDTO;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
@@ -16,6 +17,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -43,6 +45,15 @@ public class ArticleAgentService {
     private CosService cosService;
     @Resource
     private ImageServiceStrategy imageServiceStrategy;
+
+    private ArticleAgentService getProxy() {
+        try {
+            return (ArticleAgentService) AopContext.currentProxy();
+        }catch (Exception e) {
+            log.warn("获取AOP代理对象失败，使用原始对象：{}",e.getMessage());
+            return this;
+        }
+    }
 
     /**
      * 执行文章生成
@@ -84,6 +95,7 @@ public class ArticleAgentService {
      * @param modifySuggestion 修改建议
      * @return 修改后的大纲
      */
+    @AgentExecution(value="ai_modify_outline",description = "AI修改大纲")
     public List<ArticleState.OutlineSection> aiModifyOutline(String mainTitle,String subTitle,List<ArticleState.OutlineSection> currentOutline,String modifySuggestion) {
         String currentOutlineJson = JSONUtil.toJsonStr(currentOutline);
         String prompt = PromptConstant.AI_MODIFY_OUTLINE_PROMPT
@@ -102,7 +114,8 @@ public class ArticleAgentService {
      * 图文合成：将配图插入正文
      * @param state 文章状态
      */
-    private void mergeImagesIntoContent(ArticleState state) {
+    @AgentExecution(value="merge_images_into_content",description = "图文合成")
+    public void mergeImagesIntoContent(ArticleState state) {
         String content = state.getContent();
         List<ArticleState.ImageResult> images = state.getImages();
         if (images == null || images.isEmpty()) {
@@ -154,7 +167,8 @@ public class ArticleAgentService {
      * @param state 文章状态
      * @param streamHandler 流处理
      */
-    private void agent5GenerateImages(ArticleState state, Consumer<String> streamHandler) {
+    @AgentExecution(value="agent5_generate_images",description = "生成配图")
+    public void agent5GenerateImages(ArticleState state, Consumer<String> streamHandler) {
         List<ArticleState.ImageResult> imageResults = new ArrayList<>();
         for (ArticleState.ImageRequirement requirement : state.getImageRequirementList()) {
             log.info("智能体5：开始生成配图，position={},keywords={}", requirement.getPosition(), requirement.getKeywords());
@@ -213,7 +227,8 @@ public class ArticleAgentService {
      * 智能体4：分析配图需求
      * @param state 文章状态
      */
-    private void agent4AnalyzeImageRequirement(ArticleState state) {
+    @AgentExecution(value="agent4_analyze_image_requirements",description = "分析配图需求")
+    public void agent4AnalyzeImageRequirement(ArticleState state) {
 //        String prompt = PromptConstant.AGENT4_IMAGE_REQUIREMENTS_PROMPT
 //                .replace("{mainTitle}",state.getTitle().getMainTitle())
 //                .replace("{content}",state.getContent());
@@ -324,7 +339,8 @@ public class ArticleAgentService {
      * @param state 文章状态
      * @param streamHandler 流处理
      */
-    private void agent3GenerateContent(ArticleState state, Consumer<String> streamHandler) {
+    @AgentExecution(value="agent3_generate_content",description = "生成文章内容")
+    public void agent3GenerateContent(ArticleState state, Consumer<String> streamHandler) {
         String outlineText = JSONUtil.toJsonStr(state.getOutline().getSections());
         String prompt = PromptConstant.AGENT3_CONTENT_PROMPT
                 .replace("{mainTitle}", state.getTitle().getMainTitle())
@@ -364,7 +380,8 @@ public class ArticleAgentService {
      * @param state 文章状态
      * @param streamHandler 流处理
      */
-    private void agent2GenerateOutline(ArticleState state, Consumer<String> streamHandler) {
+    @AgentExecution(value="agent2_generate_outline",description = "生成文章大纲")
+    public void agent2GenerateOutline(ArticleState state, Consumer<String> streamHandler) {
         String userDesc = "";
         if (StrUtil.isNotBlank(state.getUserDescription())) {
             userDesc = PromptConstant.AGENT2_DESCRIPTION_SECTION
@@ -402,7 +419,8 @@ public class ArticleAgentService {
      * 智能体1：生成标题
      * @param state 文章状态
      */
-    private void agent1GenerateTitle(ArticleState state) {
+    @AgentExecution(value="agent1_generate_titles",description = "生成标题方案")
+    public void agent1GenerateTitle(ArticleState state) {
         String prompt = PromptConstant.AGENT1_TITLE_PROMPT
                 .replace("{topic}",state.getTopic())
                 + getStylePrompt(state.getStyle());
@@ -445,7 +463,7 @@ public class ArticleAgentService {
         try {
             // 智能体1，开始生成标题方案
             log.info("阶段1：开始生成标题方案，taskId={}", state.getTaskId());
-            agent1GenerateTitle(state);
+            getProxy().agent1GenerateTitle(state);
             streamHandler.accept(AGENT1_COMPLETE.getValue());
             log.info("阶段1：标题生成完成，taskId={},optionCount={}",
                     state.getTaskId(),state.getTitleOptions().size());
@@ -464,7 +482,7 @@ public class ArticleAgentService {
         try {
             // 智能体2：生成大纲
             log.info("阶段2：开始生成大纲，taskId={}", state.getTaskId());
-            agent2GenerateOutline(state, streamHandler);
+            getProxy().agent2GenerateOutline(state, streamHandler);
             streamHandler.accept(AGENT2_COMPLETE.getValue());
             log.info("阶段2：大纲生成完成，taskId={}", state.getTaskId());
         } catch (Exception e) {
@@ -482,21 +500,22 @@ public class ArticleAgentService {
         try {
             // 智能体3：生成内容
             log.info("阶段3：开始生成内容，taskId={}", state.getTaskId());
-            agent3GenerateContent(state, streamHandler);
+            ArticleAgentService proxy = getProxy();
+            proxy.agent3GenerateContent(state, streamHandler);
             streamHandler.accept(AGENT3_COMPLETE.getValue());
             log.info("阶段3：内容生成完成，taskId={}", state.getTaskId());
             // 智能体4：分析配图需求
             log.info("阶段3：开始分析配图需求，taskId={}", state.getTaskId());
-            agent4AnalyzeImageRequirement(state);
+            proxy.agent4AnalyzeImageRequirement(state);
             streamHandler.accept(AGENT4_COMPLETE.getValue());
             // 智能体5：生成配图
             log.info("阶段3：开始生成配图，taskId={}", state.getTaskId());
-            agent5GenerateImages(state, streamHandler);
+            proxy.agent5GenerateImages(state, streamHandler);
             streamHandler.accept(AGENT5_COMPLETE.getValue());
             log.info("阶段3：配图生成完成，taskId={}", state.getTaskId());
             // 图文合成，将配图插入正文
             log.info("阶段3：开始图文合成，taskId={}", state.getTaskId());
-            mergeImagesIntoContent(state);
+            proxy.mergeImagesIntoContent(state);
             streamHandler.accept(MERGE_COMPLETE.getValue());
             log.info("阶段3：图文合成完成，taskId={}", state.getTaskId());
             log.info("阶段3：正文生成完成，taskId={}", state.getTaskId());
