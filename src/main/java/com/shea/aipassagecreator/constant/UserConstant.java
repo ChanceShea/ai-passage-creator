@@ -25,5 +25,7 @@ public interface UserConstant {
      * VIP用户
      */
     String VIP_ROLE = "vip";
+
+    Integer DEFAULT_QUOTA = 5;
 }
 
