@@ -1,6 +1,8 @@
 package com.shea.aipassagecreator.service;
 
 import cn.hutool.json.JSONUtil;
+import com.shea.aipassagecreator.agent.ArticleAgentOrchestrator;
+import com.shea.aipassagecreator.agent.config.AgentConfig;
 import com.shea.aipassagecreator.domain.entity.Article;
 import com.shea.aipassagecreator.domain.entity.ArticleState;
 import com.shea.aipassagecreator.enums.ArticlePhaseEnum;
@@ -34,6 +36,10 @@ public class ArticleAsyncService {
     private SseEmitterManager sseEmitterManager;
     @Resource
     private IArticleService articleService;
+    @Resource
+    private ArticleAgentOrchestrator articleAgentOrchestrator;
+    @Resource
+    private AgentConfig agentConfig;
 
     /**
      * 执行文章生成
@@ -72,7 +78,8 @@ public class ArticleAsyncService {
      */
     @Async("articleExecutor")
     public void executePhase1(String taskId,String topic, String style) {
-        log.info("阶段1异步任务开始执行，taskId={},topic={},style={}", taskId, topic, style);
+        boolean userOrchestrator = agentConfig.isOrchestratorEnabled();
+        log.info("阶段1异步任务开始执行，taskId={},topic={},style={},userOrchestrator={}", taskId, topic, style, userOrchestrator);
         try {
             // 更新文章状态
             articleService.updateArticleStatus(taskId, ArticleStatusEnum.PROCESSING, null);
@@ -84,7 +91,16 @@ public class ArticleAsyncService {
             state.setStyle(style);
 
             // 生成标题方案
-            articleAgentService.executePhase1_GenerateTitles(state, message -> handleAgentMessage(taskId, message, state));
+            if (userOrchestrator) {
+                articleAgentOrchestrator.executePhase1_GenerateTitles(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            } else {
+                articleAgentService.executePhase1_GenerateTitles(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            }
+
             articleService.saveTitleOptions(taskId, state.getTitleOptions());
             articleService.updatePhase(taskId, ArticlePhaseEnum.TITLE_SELECTING);
             Map<String,Object> data = new HashMap<>();
@@ -106,7 +122,8 @@ public class ArticleAsyncService {
      */
     @Async("articleExecutor")
     public void executePhase2(String taskId) {
-        log.info("阶段2异步任务开始执行，taskId={}", taskId);
+        boolean orchestratorEnabled = agentConfig.isOrchestratorEnabled();
+        log.info("阶段2异步任务开始执行，taskId={},userOrchestrator={}", taskId, orchestratorEnabled);
         try {
             Article article = articleService.getByTaskId(taskId);
             throwIf(article == null, ErrorCode.NOT_FOUND_ERROR,"文章不存在");
@@ -118,9 +135,16 @@ public class ArticleAsyncService {
             titleResult.setMainTitle(article.getMainTitle());
             titleResult.setSubTitle(article.getSubTitle());
             state.setTitle(titleResult);
-
             // 执行生成大纲
-            articleAgentService.executePhase2_GenerateOutline(state,message->handleAgentMessage(taskId,message,state));
+            if (orchestratorEnabled) {
+                articleAgentOrchestrator.executePhase2_GenerateOutline(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            } else {
+                articleAgentService.executePhase2_GenerateOutline(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            }
             Article newArticle = articleService.getByTaskId(taskId);
             newArticle.setOutline(JSONUtil.toJsonStr(state.getOutline().getSections()));
             articleService.updateById(newArticle);
@@ -147,7 +171,8 @@ public class ArticleAsyncService {
      */
     @Async("articleExecutor")
     public void executePhase3(String taskId) {
-        log.info("阶段3异步任务开始执行，taskId={}", taskId);
+        boolean orchestratorEnabled = agentConfig.isOrchestratorEnabled();
+        log.info("阶段3异步任务开始执行，taskId={},userOrchestrator={}", taskId, orchestratorEnabled);
         try {
             Article article = articleService.getByTaskId(taskId);
             throwIf(article == null, ErrorCode.NOT_FOUND_ERROR,"文章不存在");
@@ -171,7 +196,16 @@ public class ArticleAsyncService {
             ArticleState.OutlineResult outlineResult = new ArticleState.OutlineResult();
             outlineResult.setSections(outline);
             state.setOutline(outlineResult);
-            articleAgentService.executePhase3_GenerateContent(state,message -> handleAgentMessage(taskId,message,state));
+            // 执行生成正文+图片
+            if (orchestratorEnabled) {
+                articleAgentOrchestrator.executePhase3_GenerateContent(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            } else {
+                articleAgentService.executePhase3_GenerateContent(
+                        state, message -> handleAgentMessage(taskId, message, state)
+                );
+            }
             // 保存文章到数据库
             articleService.saveArticleContent(taskId,state);
             articleService.updateArticleStatus(taskId, ArticleStatusEnum.COMPLETED, null);
